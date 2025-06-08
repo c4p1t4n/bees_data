@@ -1,0 +1,13 @@
+[project]
+name = "bees-breweries"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.38.32",
+    "dotenv>=0.9.9",
+    "pyspark>=4.0.0",
+    "pytest>=8.4.0",
+    "requests>=2.32.3",
+]
