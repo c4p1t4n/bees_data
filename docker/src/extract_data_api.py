@@ -23,25 +23,17 @@ def extract_breweries_to_minio(bucket_name: str, object_key_prefix: str, executi
     all_breweries = []
     page = 1
     per_page = 50
+    url = f"https://api.openbrewerydb.org/v1/breweries?page={page}&per_page={per_page}"
+    response = requests.get(url)
 
-    while True:
-        url = f"https://api.openbrewerydb.org/v1/breweries?page={page}&per_page={per_page}"
-        response = requests.get(url)
+    if response.status_code != 200:
+        raise Exception(f"Erro ao acessar API: {response.status_code} - {response.text}")
 
-        if response.status_code != 200:
-            raise Exception(f"Erro ao acessar API: {response.status_code} - {response.text}")
+    breweries = response.json()
 
-        breweries = response.json()
-        if not breweries:
-            break
-
-        all_breweries.extend(breweries)
-        page += 1
-        print(" brewejeries encontrados:", len(all_breweries))
-        break
 
     # Serializa JSON como string
-    json_data = json.dumps(all_breweries, ensure_ascii=False, indent=2)
+    json_data = json.dumps(breweries, ensure_ascii=False, indent=2)
 
     # Define a key (caminho no bucket)
     object_key = f"{object_key_prefix}/breweries_{execution_date}.json"
@@ -50,8 +42,8 @@ def extract_breweries_to_minio(bucket_name: str, object_key_prefix: str, executi
     s3 = boto3.client(
         "s3",
         endpoint_url=os.getenv("S3_ENDPOINT_URL", "http://localhost:9000"),
-        aws_access_key_id="XYeAHdsLDlphJ8f6ses4",
-        aws_secret_access_key="hnYxJvaUiOZ4qTsxdRgdVSpk8sLVHKOTdDNFikkZ",
+        aws_access_key_id="H1Cv8fzwXljv2Vl3RO79",
+        aws_secret_access_key="nQCkdSU2GHSnjC36shOijpSZuIZxGc8BNsHRBU0A",
         config=Config(signature_version="s3v4"),
         region_name="us-east-1"
     )
@@ -63,7 +55,6 @@ def extract_breweries_to_minio(bucket_name: str, object_key_prefix: str, executi
     return object_key
 
 
-# Execução manual para testes
 if __name__ == "__main__":
     extract_breweries_to_minio(
         bucket_name="datalake",
