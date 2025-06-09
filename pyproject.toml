@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "apache-airflow>=3.0.1",
     "boto3>=1.38.32",
     "dotenv>=0.9.9",
     "pyspark>=4.0.0",
