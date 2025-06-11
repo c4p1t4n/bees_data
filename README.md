@@ -112,7 +112,7 @@ Access the services:
 
 #### Running the Pipeline
 Access the Airflow UI at http://localhost:8080, enable and trigger the extract_breweries_dag.
-![alt text](image.png)
+![alt text](dags.png)
 
 
 acess the MinIO MinIO: http://localhost:9001 and see the folders inside datalake
