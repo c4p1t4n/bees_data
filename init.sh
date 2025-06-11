@@ -10,8 +10,11 @@ chmod -R 777 docker/logs/
 
 # Sobe os containers
 cd docker/
-docker-compose down --volumes --remove-orphans
-docker-compose up -d --build
+docker compose down --volumes --remove-orphans && docker compose up -d --build || {
+    echo "docker compose failed, trying docker-compose..."
+    docker-compose down --volumes --remove-orphans
+    docker-compose up -d --build
+}
 
 # Espera os containers iniciarem
 echo "Waiting for containers to initialize..."
