@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Cria a pasta de logs se não existir
+mkdir -p docker/logs/
+
 # Define permissões
 chmod -R 755 docker/dags/
 chmod -R 755 docker/src/
