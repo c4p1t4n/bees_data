@@ -2,9 +2,8 @@
 
 # Define permissões
 chmod -R 755 docker/dags/
-chmod -R 755 docker/plugins/
 chmod -R 755 docker/src/
-chmod -R 777 docker/logs/*
+chmod -R 777 docker/logs/
 
 # Sobe os containers
 cd docker/
