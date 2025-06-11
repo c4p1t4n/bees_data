@@ -1,14 +1,21 @@
 #!/bin/bash
 
+# Define permissões
+chmod -R 755 docker/dags/
+chmod -R 755 docker/plugins/
+chmod -R 755 docker/src/
+chmod -R 777 docker/logs/*
+
+# Sobe os containers
 cd docker/
-docker-compose down --volumes --remove-orphans                                          ✭ ✱
+docker-compose down --volumes --remove-orphans
 docker-compose up -d --build
 
-# Wait for containers to be ready
+# Espera os containers iniciarem
 echo "Waiting for containers to initialize..."
-sleep 10
+sleep 15
 
-# Display access information
+# Informações de acesso
 echo "Containers are up and running!"
 echo "Access the services using the following URLs:"
 echo "Airflow: http://localhost:8080"
@@ -16,4 +23,4 @@ echo "MinIO: http://localhost:9001"
 echo ""
 echo "Credentials:"
 echo "Airflow - Username: admin | Password: admin"
-echo "MinIO - Username: minio | Password: minio123"
+echo "MinIO - Username: airflowuser | Password: airflowpass123"
