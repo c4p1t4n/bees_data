@@ -1,48 +1,81 @@
 import os
-from datetime import datetime
 from pyspark.sql import SparkSession
-from dotenv import load_dotenv
+from pyspark.sql import functions as F
+from airflow.utils.log.logging_mixin import LoggingMixin
+from datetime import datetime
+logger = LoggingMixin().log
 
-load_dotenv()
 
-def transform_breweries_bronze_to_silver(date_str: str):
+def read_from_silver(spark, silver_path):
     """
-    Transforma dados da camada bronze para a silver, particionando por ano, mês e dia.
+    Lê os dados da camada silver em formato Parquet.
     
-    :param date_str: Data de referência no formato 'YYYY-MM-DD'
+    Args:
+        spark (SparkSession): Sessão Spark ativa.
+        silver_path (str): Caminho para os dados da camada silver.
+    
+    Returns:
+        DataFrame: Dados lidos da camada silver.
     """
-    # Constrói caminhos
-    input_path = f"s3a://datalake/bronze/breweries_{date_str}.json"
-    output_path = f"s3a://datalake/silver/breweries/"
+    df = spark.read.parquet(silver_path)
+    logger.info(f"Leitura da camada silver realizada com sucesso: {silver_path}")
+    return df
 
-    # Inicializa Spark
+
+def aggregate_brewery_data(df):
+    """
+    Agrega os dados de breweries por tipo e estado.
+    
+    Args:
+        df (DataFrame): Dados da camada silver.
+    
+    Returns:
+        DataFrame: Dados agregados prontos para a camada gold.
+    """
+    df_gold = df.groupBy("brewery_type", "state") \
+                .agg(F.count("*").alias("brewery_count"))
+    logger.info("Agregação realizada com sucesso.")
+    return df_gold
+
+
+def write_to_gold(df, execution_date, gold_path):
+    """
+    Escreve os dados agregados na camada gold particionada por data de execução.
+    
+    Args:
+        df (DataFrame): DataFrame com dados agregados.
+        execution_date (str): Data da execução no formato YYYY-MM-DD.
+        gold_path (str): Caminho base para salvar os dados da camada gold.
+    """
+    output_path = os.path.join(gold_path, f"execution_date={execution_date}")
+    df.write.mode("overwrite").parquet(output_path)
+    logger.info(f"Dados escritos na camada gold: {output_path}")
+
+
+def transform_silver_to_gold(execution_date: str):
+    """
+    Orquestra a transformação da silver para gold.
+    
+    Args:
+        execution_date (str): Data da execução no formato YYYY-MM-DD.
+    """
+    silver_path = "s3a://datalake/silver/"
+    gold_path = "s3a://datalake/gold/"
+
     spark = SparkSession.builder \
-        .appName("Transform Bronze to Silver") \
-        .config("spark.hadoop.fs.s3a.endpoint", os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")) \
-        .config("spark.hadoop.fs.s3a.access.key", os.getenv("AWS_ACCESS_KEY_ID")) \
-        .config("spark.hadoop.fs.s3a.secret.key", os.getenv("AWS_SECRET_ACCESS_KEY")) \
-        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
-        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+        .appName("Transform Silver to Gold") \
         .getOrCreate()
 
-    # Lê dados bronze
-    df = spark.read.json(input_path)
-
-    # Filtra e seleciona colunas desejadas
-    df = df.select("id", "name", "brewery_type", "city", "state", "country")
-
-    # Adiciona colunas de partição
-    exec_date = datetime.strptime(date_str, "%Y-%m-%d")
-    df = df.withColumn("ano", spark.sql.functions.lit(exec_date.year)) \
-           .withColumn("mes", spark.sql.functions.lit(exec_date.month)) \
-           .withColumn("dia", spark.sql.functions.lit(exec_date.day))
-
-    # Salva em formato JSON particionado
-    df.write.mode("overwrite").partitionBy("ano", "mes", "dia").json(output_path)
-
+    df_silver = read_from_silver(spark, silver_path)
+    df_gold = aggregate_brewery_data(df_silver)
+    df_gold.show(n=5, truncate=False)  # Exibe para validação
+    write_to_gold(df_gold, execution_date, gold_path)
     spark.stop()
-    print(f"Dados da bronze {input_path} transformados e salvos na silver em {output_path}")
+    logger.info("Pipeline silver to gold finalizado com sucesso.")
+
+
 
 
 if __name__ == "__main__":
-    transform_breweries_bronze_to_silver("2025-06-07")  # Substitua pela data desejada
+    today = datetime.today().strftime("%Y-%m-%d")
+    transform_silver_to_gold(today)

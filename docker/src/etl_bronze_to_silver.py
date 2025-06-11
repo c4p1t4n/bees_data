@@ -1,48 +1,73 @@
 import os
-from datetime import datetime
 from pyspark.sql import SparkSession
-from dotenv import load_dotenv
+from pyspark.sql import functions as F
+from airflow.utils.log.logging_mixin import LoggingMixin
 
-load_dotenv()
+logger = LoggingMixin().log
 
-def transform_breweries_bronze_to_silver(date_str: str):
+def read_json_from_bronze(spark,file_path) -> SparkSession:
     """
-    Transforma dados da camada bronze para a silver, particionando por ano, mês e dia.
+    Lê um arquivo JSON da camada bronze e retorna um DataFrame Spark.
     
-    :param date_str: Data de referência no formato 'YYYY-MM-DD'
+    Args:
+        file_path (str): Caminho do arquivo JSON na camada bronze.
+    
+    Returns:
+        SparkSession: DataFrame Spark contendo os dados lidos do JSON.
     """
-    # Constrói caminhos
-    input_path = f"s3a://datalake/bronze/breweries_{date_str}.json"
-    output_path = f"s3a://datalake/silver/breweries/"
+    df = spark.read.json(file_path)
+    logger.info(f"Dados lidos do arquivo {file_path} com {df.count()} registros.")
+    return df
 
-    # Inicializa Spark
+
+
+def clean_data(df):
+    """
+    Realiza tratamentos gerais:
+    - Remove duplicatas
+    - Remove linhas com valores nulos nas colunas principais (se existirem)
+    - Faz cast de colunas relevantes para StringType
+    """
+    df = df.dropDuplicates()
+    required_cols = ["country", "state", "city"]
+    for col in required_cols:
+        if col in df.columns:
+            df = df.filter(F.col(col).isNotNull())
+    return df
+
+
+def write_to_silver(df, output_path):
+    """
+    Escreve um DataFrame Spark na camada silver em formato Parquet particionado por localização.
+    
+    Args:
+        df (SparkSession): DataFrame Spark a ser escrito.
+        output_path (str): Caminho de saída para salvar os dados na camada silver.
+    """
+    df.write.mode("overwrite") \
+        .partitionBy("country", "state", "city") \
+        .parquet(output_path)
+    logger.info(f"Dados salvos na camada silver em: {output_path}")
+
+
+
+def transform_bronze_to_silver():
+    """
+    Lê todos os arquivos da camada bronze, transforma e salva na camada silver
+    em formato Parquet particionado por localização.
+    """
+    OUTPUT_PATH = "s3a://datalake/silver/"
     spark = SparkSession.builder \
-        .appName("Transform Bronze to Silver") \
-        .config("spark.hadoop.fs.s3a.endpoint", os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")) \
-        .config("spark.hadoop.fs.s3a.access.key", os.getenv("AWS_ACCESS_KEY_ID")) \
-        .config("spark.hadoop.fs.s3a.secret.key", os.getenv("AWS_SECRET_ACCESS_KEY")) \
-        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
-        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+        .appName("Transform All Bronze to Silver") \
         .getOrCreate()
 
-    # Lê dados bronze
-    df = spark.read.json(input_path)
-
-    # Filtra e seleciona colunas desejadas
-    df = df.select("id", "name", "brewery_type", "city", "state", "country")
-
-    # Adiciona colunas de partição
-    exec_date = datetime.strptime(date_str, "%Y-%m-%d")
-    df = df.withColumn("ano", spark.sql.functions.lit(exec_date.year)) \
-           .withColumn("mes", spark.sql.functions.lit(exec_date.month)) \
-           .withColumn("dia", spark.sql.functions.lit(exec_date.day))
-
-    # Salva em formato JSON particionado
-    df.write.mode("overwrite").partitionBy("ano", "mes", "dia").json(output_path)
+    df = read_json_from_bronze(spark,"s3a://datalake/bronze/data.json")
+    df = clean_data(df)
+    write_to_silver(df, OUTPUT_PATH)
 
     spark.stop()
-    print(f"Dados da bronze {input_path} transformados e salvos na silver em {output_path}")
+    logger.info(f"Todos os dados da bronze foram transformados e salvos na silver em: {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
-    transform_breweries_bronze_to_silver("2025-06-07")  # Substitua pela data desejada
+    transform_bronze_to_silver()
