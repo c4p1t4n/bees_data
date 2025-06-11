@@ -14,20 +14,35 @@ Architecture
     Spark: data processing.
 
     Docker Compose: Manages the service containers.
+### Project Structure
 
+├── docker/
+│   ├── dags/                # Airflow DAGs
+│   ├── src/                 # Extraction and ETL scripts
+│   ├── logs/                # Airflow logs
+│   ├── minio/               # Persistent MinIO data
+│   ├── Dockerfile           # Custom Airflow/Spark image
+│   └── docker-compose.yml   # Service orchestration
+├── README.md
+├── pyproject.toml
+└── init.sh
 
 ## Pipeline
 
     Extraction
     Data is extracted from the Open Brewery DB via a REST API and saved to the datalake bucket in the bronze layer (bronze/data.json).
-
+![Extraction](extract_data_flux.png)
     Bronze → Silver
     Raw data is cleaned and partitioned by country, state, and city, then saved in Parquet format in the silver layer (silver/).
-
+![Bronze_to_silver](bronze_to_silver.png)
     Silver → Gold
     Data is aggregated by brewery type and state, and saved to the gold layer (gold/), partitioned by execution date.
-
-
+![Bronze_to_silver](silver_to_gold.png)
+    Error Handling
+    The pipeline includes mechanisms to handle errors effectively:
+    - Task failures trigger email notifications using AWS SES.
+    - Airflow's retry mechanism is configured to reattempt failed tasks.
+![error image](image.png)
 ### Prerequisites
 
     - Docker and Docker Compose installed
@@ -77,16 +92,12 @@ git clone git@github.com:c4p1t4n/bees_data.git
 ```
 
 ```
-cd /docker
+chmod +x init.sh
 ```
 
 ```
-
+./init.sh
 ```
-
-
-
-
 Access the services:
 
     Airflow: http://localhost:8080
@@ -101,33 +112,10 @@ Access the services:
 
         Password: airflowpass123
 
-Running the Pipeline
-
+#### Running the Pipeline
 Access the Airflow UI at http://localhost:8080, enable and trigger the extract_breweries_dag.
-Project Structure
+![alt text](image.png)
 
-├── docker/
-│   ├── dags/                # Airflow DAGs
-│   ├── src/                 # Extraction and ETL scripts
-│   ├── logs/                # Airflow logs
-│   ├── minio/               # Persistent MinIO data
-│   ├── Dockerfile           # Custom Airflow/Spark image
-│   └── docker-compose.yml   # Service orchestration
-├── src/                     # (mirrored inside the container)
-├── README.md
-├── pyproject.toml
-└── init.sh
 
-Key Scripts
-
-    extract_data_api.py: Extracts data from the API and uploads it to MinIO.
-
-    etl_bronze_to_silver.py: Cleans and transforms data from bronze to silver.
-
-    etl_silver_to_gold.py: Aggregates data from silver to gold.
-
-    extract_breweries_dag.py: Main pipeline DAG.
-
-    failure_dag.py: Failure testing DAG.
-
-    task_failure.py: Custom failure callback that sends an email alert.
+acess the MinIO MinIO: http://localhost:9001 and see the folders inside datalake
+![alt text](minio.png)
