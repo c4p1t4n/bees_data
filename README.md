@@ -5,7 +5,7 @@ This project implements a data engineering pipeline using Apache Airflow, Spark,
 Architecture
 
 ## Architecture
-    ![Arquitetura](arquitetura.png)
+![Arquitetura](arquitetura.png)
 
     Airflow: Orchestrates the ETL pipelines.
 
