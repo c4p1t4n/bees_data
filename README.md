@@ -94,7 +94,7 @@ chmod +x init.sh
 ```
 
 ```
-./init.sh
+sudo ./init.sh
 ```
 Access the services:
 
